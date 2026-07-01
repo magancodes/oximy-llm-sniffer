@@ -74,12 +74,12 @@ bundled fixtures automatically, so it works out of the box. Three modes:
    > raw packets, the portal makes a **real** streaming API call and measures the
    > **real** thing this detector cares about: each token chunk's **arrival time
    > and byte size**. It lays those real timings and sizes down as a TCP flow and
-   > runs the identical tshark + model pipeline. The *shape* is real, measured
+   > runs the identical pcap-parse + model pipeline. The *shape* is real, measured
    > from a real LLM; only the packet framing around it is reconstructed. We
    > never claim to have sniffed raw packets.
 
 2. **Simulated.** Build synthetic AI / normal / mixed flows and run the real
-   tshark + model pipeline on them. No API key needed. (Add `?demo=1` to the URL
+   pcap-parse + model pipeline on them. No API key needed. (Add `?demo=1` to the URL
    to auto-run this, a handy shareable demo link.)
 
 3. **Analyze a pcap.** Upload your own `.pcap`/`.pcapng`, or pick a bundled
@@ -112,21 +112,29 @@ Flows with fewer than ~8 packets are dropped (too little signal).
 
 ## Setup
 
-**1. Python 3.9+ and the Python deps:**
+Just Python 3.9+ and the deps:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-**2. tshark** (from Wireshark) is a *system* dependency, not a pip package:
+That is the whole install. pcaps are parsed in **pure Python** (scapy), so there
+is no system binary such as tshark/Wireshark to install; it runs the same way
+locally, on a fresh machine, and serverless.
 
-- **Windows:** `winget install WiresharkFoundation.Wireshark`
-  (reading pcaps needs no capture driver, so you can skip the Npcap prompt)
-- **macOS:** `brew install wireshark`
-- **Debian/Ubuntu:** `sudo apt install tshark`
+### Deploy on Vercel
 
-The code finds tshark on your `PATH`, or at the standard Windows install path, or
-wherever you point the `TSHARK` environment variable.
+The repo ships an `api/index.py` entrypoint and a `vercel.json` that route every
+request to the Flask app, plus a committed `model.joblib`, so it deploys as-is:
+
+```bash
+vercel        # preview
+vercel --prod # production
+```
+
+No tshark, no training step at deploy time. The bundled fixtures are not shipped
+to the deploy (regenerable), so the "Analyze a pcap" fixture list is empty there;
+"Simulated", "Real LLM test", and pcap upload all work.
 
 ---
 
@@ -216,6 +224,6 @@ fixtures are teaching examples, not a benchmark.
 - **Evadable.** An adversary who pads packets to uniform size and paces them
   regularly can blur the shape. Shape-based detection and shape-based evasion are
   a cat-and-mouse game; this is the opening move, not the last word.
-- **IPv4 TCP only** in this prototype (the tshark filter is `ip and tcp`). QUIC /
+- **IPv4 TCP only** in this prototype (the parser keeps IPv4 TCP packets only). QUIC /
   HTTP-3 (UDP) and IPv6 are future work, and QUIC in particular is where a lot
   of real LLM traffic is heading.

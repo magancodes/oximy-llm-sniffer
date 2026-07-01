@@ -38,12 +38,18 @@ server is, it does not belong in that list.
 
 from __future__ import annotations
 
-import os
-import shutil
-import subprocess
+import logging
 from statistics import mean, pstdev
 
 import pandas as pd
+
+# We parse pcaps in PURE PYTHON with scapy instead of shelling out to tshark.
+# That removes the only system-binary dependency, so the detector runs the same
+# way locally and in a serverless environment (e.g. Vercel) with nothing to
+# install. scapy prints a one-line "no libpcap" notice on import that we do not
+# care about here (we only READ pcap files, never sniff), so quiet it.
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
+from scapy.all import IP, TCP, PcapReader
 
 # ---------------------------------------------------------------------------
 # FEATURE_COLS: the model's ENTIRE input. Zero identifiers. This list is the
@@ -84,86 +90,36 @@ MIN_PACKETS = 8
 
 
 # ---------------------------------------------------------------------------
-# tshark plumbing
+# pcap parsing (pure Python via scapy; no tshark / system binary required)
 # ---------------------------------------------------------------------------
-def _find_tshark() -> str:
-    """Locate the tshark executable.
-
-    Order: $TSHARK override -> PATH -> the standard Windows install dirs.
-    """
-    env = os.environ.get("TSHARK")
-    if env and os.path.exists(env):
-        return env
-    found = shutil.which("tshark")
-    if found:
-        return found
-    for candidate in (
-        r"C:\Program Files\Wireshark\tshark.exe",
-        r"C:\Program Files (x86)\Wireshark\tshark.exe",
-    ):
-        if os.path.exists(candidate):
-            return candidate
-    raise FileNotFoundError(
-        "tshark not found. Install Wireshark/tshark, or set the TSHARK "
-        "environment variable to its full path."
-    )
-
-
-# The ONLY fields we pull out of the capture. Note WHY each is here:
-#   frame.time_epoch     -> timing (features)
-#   ip.src/ip.dst        -> DIRECTION SPLIT ONLY (never a feature)
-#   tcp.srcport/dstport  -> DIRECTION SPLIT ONLY (never a feature)
-#   frame.len            -> packet size (features)
-# We pull ip/port because we must, to know which way a packet flowed. The
-# feature builder below throws the raw values away and keeps only the shape.
-_TSHARK_FIELDS = [
-    "frame.time_epoch",
-    "ip.src",
-    "ip.dst",
-    "tcp.srcport",
-    "tcp.dstport",
-    "frame.len",
-]
-
-
-def _run_tshark(pcap_path: str) -> list[tuple]:
-    """Run tshark over a pcap and return a list of raw per-packet tuples.
+def _read_packets(pcap_path: str) -> list[tuple]:
+    """Parse a pcap into raw per-packet tuples, in pure Python.
 
     Each tuple: (t_epoch, src_ip, dst_ip, src_port, dst_port, frame_len).
-    Only IPv4 TCP packets are considered (the `ip and tcp` display filter);
-    IPv6 support is left as future work — see README limitations.
+    Only IPv4 TCP packets are kept (matching the old `ip and tcp` filter);
+    IPv6 is left as future work -- see README limitations.
+
+    We read ip/port here ONLY to know which way each packet flowed. Which
+    fields become features is decided later, in _features_for_flow, and the raw
+    ip/port values are never among them.
     """
-    tshark = _find_tshark()
-    cmd = [
-        tshark,
-        "-r", pcap_path,
-        "-Y", "ip and tcp",      # IPv4 TCP only
-        "-T", "fields",
-        "-E", "separator=\t",    # tab-separated; safe for these numeric/IP fields
-        "-E", "occurrence=f",    # first occurrence only, in case a field repeats
-    ]
-    for f in _TSHARK_FIELDS:
-        cmd += ["-e", f]
-
-    proc = subprocess.run(cmd, capture_output=True, text=True)
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"tshark failed on {pcap_path!r}:\n{proc.stderr.strip()}"
-        )
-
     rows: list[tuple] = []
-    for line in proc.stdout.splitlines():
-        parts = line.split("\t")
-        if len(parts) != len(_TSHARK_FIELDS):
-            continue  # malformed / non-matching line
-        t, sip, dip, sport, dport, flen = parts
-        # A missing ip/port means it wasn't an IPv4 TCP packet we can orient.
-        if not (t and sip and dip and sport and dport and flen):
-            continue
-        try:
-            rows.append((float(t), sip, dip, sport, dport, int(flen)))
-        except ValueError:
-            continue
+    with PcapReader(pcap_path) as reader:
+        for pkt in reader:
+            # Skip anything that is not IPv4 TCP -- same effect as tshark's
+            # `ip and tcp` display filter.
+            if not (pkt.haslayer(IP) and pkt.haslayer(TCP)):
+                continue
+            ip, tcp = pkt[IP], pkt[TCP]
+            # frame_len = original on-wire length (wirelen from the pcap record
+            # header); fall back to the captured byte count if it is absent.
+            frame_len = int(getattr(pkt, "wirelen", 0) or len(pkt))
+            rows.append((
+                float(pkt.time),                  # timing -> becomes features
+                ip.src, ip.dst,                   # direction split ONLY
+                str(tcp.sport), str(tcp.dport),   # direction split ONLY
+                frame_len,                         # size -> becomes features
+            ))
     return rows
 
 
@@ -268,7 +224,7 @@ def extract_features(pcap_path: str) -> pd.DataFrame:
 
     Columns = FEATURE_COLS + META_COLS. Flows under MIN_PACKETS are dropped.
     """
-    rows = _run_tshark(pcap_path)
+    rows = _read_packets(pcap_path)
 
     flows: dict[tuple, list[tuple]] = {}
     for t, sip, dip, sport, dport, flen in rows:

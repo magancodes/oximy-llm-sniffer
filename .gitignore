@@ -2,8 +2,9 @@
 __pycache__/
 *.pyc
 
-# Generated artifacts (recreate with: python make_fixtures.py, then train.py)
-model.joblib
+# Regenerable data (recreate with: python make_fixtures.py). Not needed at
+# runtime: a trained model.joblib IS committed so serverless deploys (Vercel)
+# work with no training step and no fixtures on disk.
 ai.csv
 normal.csv
 fixtures/

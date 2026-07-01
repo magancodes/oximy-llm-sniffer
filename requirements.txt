@@ -4,12 +4,10 @@ pandas
 scikit-learn
 joblib
 
-# Web portal (app.py)
-flask
-
-# Dev/test only: used by make_fixtures.py to synthesize demo pcaps.
-# The detector itself parses pcaps with tshark, not scapy.
+# scapy parses pcaps in PURE PYTHON (replaces tshark) and also synthesizes the
+# demo pcaps. Because there is no system binary to install, the detector runs
+# the same way locally and in a serverless environment (e.g. Vercel).
 scapy
 
-# NOTE: tshark (from Wireshark) is a SYSTEM dependency, not a pip package.
-# Install it separately — see README.md "Setup".
+# Web portal (app.py)
+flask

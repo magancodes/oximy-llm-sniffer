@@ -255,9 +255,7 @@ $("#nflows").addEventListener("input", e => $("#nflows-val").textContent = e.tar
 async function loadStatus() {
   const s = await (await fetch("/api/status")).json();
   const chips = [];
-  chips.push(s.tshark
-    ? `<span class="chip good">tshark <b>found</b></span>`
-    : `<span class="chip bad">tshark <b>missing</b></span>`);
+  chips.push(`<span class="chip good">engine <b>${esc(s.engine||'scapy')}</b></span>`);
   chips.push(s.model_ready
     ? `<span class="chip good">model <b>ready</b></span>`
     : `<span class="chip bad">model <b>not trained</b></span>`);
@@ -320,13 +318,27 @@ function renderResults(det, source, stream) {
 }
 function showError(msg){ $("#err").innerHTML = `<div class="err">${esc(msg)}</div>`; }
 
+// Parse a response as JSON, but give a clear message if the backend returned
+// HTML (which means the page was opened from a static server / the file itself,
+// not the Flask app that also serves /api/*).
+async function asJson(r){
+  const ct = r.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) {
+    await r.text().catch(()=>{});
+    throw new Error("Backend not reached: /api returned " + (ct.split(";")[0] || "non-JSON")
+      + " instead of JSON. Open the app at http://127.0.0.1:5000 (run: python app.py), "
+      + "not the .html file directly or a static server like Live Server.");
+  }
+  return r.json();
+}
+
 // ---- simulated ----
 $("#run-sim").addEventListener("click", async () => {
   $("#run-sim").disabled = true; $("#results").innerHTML = "<div class='summary'>running</div>";
   try {
     const r = await fetch("/api/simulate", {method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({kind:$("#sim-kind").value, n_flows:+$("#nflows").value})});
-    const j = await r.json(); if (j.error) return showError(j.error);
+    const j = await asJson(r); if (j.error) return showError(j.error);
     renderResults(j, j.source);
   } catch(e){ showError(String(e)); } finally { $("#run-sim").disabled = false; }
 });
@@ -335,16 +347,20 @@ $("#run-sim").addEventListener("click", async () => {
 $("#run-fixture").addEventListener("click", async () => {
   const fx = $("#fixture").value; if (!fx) return showError("no fixture available");
   $("#results").innerHTML = "<div class='summary'>analyzing</div>";
-  const fd = new FormData(); fd.append("fixture", fx);
-  const j = await (await fetch("/api/analyze", {method:"POST", body:fd})).json();
-  if (j.error) return showError(j.error); renderResults(j, j.source);
+  try {
+    const fd = new FormData(); fd.append("fixture", fx);
+    const j = await asJson(await fetch("/api/analyze", {method:"POST", body:fd}));
+    if (j.error) return showError(j.error); renderResults(j, j.source);
+  } catch(e){ showError(String(e.message||e)); }
 });
 $("#run-upload").addEventListener("click", async () => {
   const f = $("#pcapfile").files[0]; if (!f) return showError("choose a .pcap file first");
   $("#results").innerHTML = "<div class='summary'>analyzing</div>";
-  const fd = new FormData(); fd.append("pcap", f);
-  const j = await (await fetch("/api/analyze", {method:"POST", body:fd})).json();
-  if (j.error) return showError(j.error); renderResults(j, j.source);
+  try {
+    const fd = new FormData(); fd.append("pcap", f);
+    const j = await asJson(await fetch("/api/analyze", {method:"POST", body:fd}));
+    if (j.error) return showError(j.error); renderResults(j, j.source);
+  } catch(e){ showError(String(e.message||e)); }
 });
 
 // ---- real LLM (streaming NDJSON) ----

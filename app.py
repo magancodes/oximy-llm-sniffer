@@ -9,8 +9,8 @@ Runs a local web server (Flask) that lets you, from a browser:
   2. Run a SIMULATED test on synthetic AI / normal / mixed flows (no API key).
   3. Analyze an uploaded .pcap or one of the bundled fixtures.
 
-Every path runs the identical tshark + model pipeline and the model only ever
-sees FEATURE_COLS — no hostname, SNI, IP, or port. The UI keeps saying so.
+Every path runs the identical pcap-parse + model pipeline and the model only
+ever sees FEATURE_COLS: no hostname, SNI, IP, or port. The UI keeps saying so.
 
 Start it:  python app.py   (then open http://127.0.0.1:5000)
 """
@@ -27,7 +27,7 @@ from flask import Flask, Response, jsonify, render_template, request, stream_wit
 
 import detector
 import llm_probe
-from features import FEATURE_COLS, _find_tshark
+from features import FEATURE_COLS
 
 app = Flask(__name__)
 # Serve the latest index.html on every request (it's a local dev tool; editing
@@ -48,12 +48,7 @@ def index():
 
 @app.route("/api/status")
 def status():
-    """Toolchain + model readiness for the UI to render, plus env defaults."""
-    try:
-        tshark_path = _find_tshark()
-    except Exception as e:
-        tshark_path = None
-
+    """Engine + model readiness for the UI to render, plus env defaults."""
     try:
         importances = detector.feature_importances()
     except Exception:
@@ -64,7 +59,9 @@ def status():
         fixtures = sorted(f for f in os.listdir(_FIXTURES_DIR) if f.endswith(".pcap"))
 
     return jsonify({
-        "tshark": tshark_path,
+        # Pure-Python pcap parsing (scapy). No tshark / system binary needed,
+        # which is what lets this run serverless.
+        "engine": "scapy (pure Python)",
         "model_ready": bool(importances),
         "feature_cols": FEATURE_COLS,
         "importances": importances,
