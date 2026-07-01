@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+
+# Generated artifacts (recreate with: python make_fixtures.py, then train.py)
+model.joblib
+ai.csv
+normal.csv
+fixtures/
+
+# PP Mondwest is a licensed font (Pangram Pangram), not redistributed here.
+# The UI falls back to a monospace font when it is absent.
+# If your license permits redistribution, force-add it:
+#   git add -f static/PPMondwest-Regular.otf
+*.otf

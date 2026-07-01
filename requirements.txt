@@ -1,0 +1,15 @@
+# Core detector dependencies
+numpy
+pandas
+scikit-learn
+joblib
+
+# Web portal (app.py)
+flask
+
+# Dev/test only: used by make_fixtures.py to synthesize demo pcaps.
+# The detector itself parses pcaps with tshark, not scapy.
+scapy
+
+# NOTE: tshark (from Wireshark) is a SYSTEM dependency, not a pip package.
+# Install it separately — see README.md "Setup".

@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>llm-shape-detector</title>
+<style>
+  @font-face {
+    font-family:'PP Mondwest';
+    src:url('/static/PPMondwest-Regular.otf') format('opentype');
+    font-weight:normal; font-style:normal; font-display:swap;
+  }
+  :root {
+    --bg:#0b0806; --panel:#120e0b; --edge:#221a15;
+    --ink:#efe9e2; --muted:#8f8478; --faint:#5f574e;
+    --accent:#ff5a1f; --ok:#63c08c;
+    --px:'PP Mondwest', ui-monospace, Consolas, monospace;  /* pixel display type */
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.55 ui-sans-serif,system-ui,Segoe UI,Roboto,Arial;
+    -webkit-font-smoothing:antialiased; }
+  a { color:var(--accent); text-decoration:none; }
+
+  .wrap { max-width:820px; margin:0 auto; padding:56px 28px 40px; }
+
+  /* Brand + title */
+  .brand { display:inline-flex; align-items:center; gap:9px; font-family:var(--px);
+    font-size:18px; color:var(--muted); }
+  .cube { width:14px; height:14px; background:var(--accent); position:relative; }
+  .cube::after { content:''; position:absolute; inset:3px; background:var(--bg); }
+  h1 { margin:20px 0 0; font-size:30px; font-weight:600; letter-spacing:.2px; }
+  h1 span { font-family:var(--px); font-weight:400; color:var(--accent); }
+  .tag { color:var(--muted); font-size:14px; margin:14px 0 0; max-width:640px; }
+  .tag b { color:var(--ink); font-weight:600; }
+
+  /* Thesis: quiet note with a thin accent rule */
+  .thesis { margin:30px 0 0; padding:2px 0 2px 16px; border-left:2px solid var(--accent);
+    color:var(--muted); font-size:14px; max-width:660px; }
+  .thesis b { color:var(--ink); font-weight:600; }
+
+  /* Status: label with a small status dot, no pills */
+  .status { display:flex; gap:22px; flex-wrap:wrap; margin:30px 0 0;
+    font-size:13px; color:var(--muted); }
+  .chip { display:inline-flex; align-items:center; gap:8px; }
+  .chip::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--faint); }
+  .chip.good::before { background:var(--ok); }
+  .chip.bad::before { background:var(--accent); }
+  .chip b { color:var(--ink); font-weight:600; }
+
+  details { margin:20px 0 0; }
+  summary { cursor:pointer; color:var(--muted); font-size:13px; list-style:none; }
+  summary::-webkit-details-marker { display:none; }
+  summary::before { content:'+  '; color:var(--faint); }
+  details[open] summary::before { content:'\2212  '; }
+
+  /* Tabs: underline, no boxes */
+  .tabs { display:flex; gap:26px; margin:40px 0 0; border-bottom:1px solid var(--edge); }
+  .tab { padding:0 0 12px; margin-bottom:-1px; cursor:pointer; color:var(--muted);
+    font-size:14px; border-bottom:2px solid transparent; }
+  .tab:hover { color:var(--ink); }
+  .tab.active { color:var(--ink); border-bottom-color:var(--accent); }
+
+  .card { padding:28px 0 0; }
+
+  /* Form */
+  label { display:block; font-size:12px; color:var(--muted); margin:18px 0 7px; }
+  input,select,textarea { width:100%; background:var(--panel); color:var(--ink);
+    border:1px solid var(--edge); border-radius:6px; padding:10px 12px; font:inherit; }
+  input:focus,select:focus,textarea:focus { outline:none; border-color:var(--accent); }
+  input[type=range],input[type=file] { accent-color:var(--accent); }
+  input[type=range] { padding:0; border:none; background:transparent; }
+  textarea { resize:vertical; min-height:70px; }
+  .row { display:flex; gap:16px; } .row > div { flex:1; }
+  .hint { font-size:12px; color:var(--faint); margin-top:6px; }
+
+  button.go { margin-top:22px; background:var(--accent); color:#160a03; border:none;
+    border-radius:6px; padding:11px 20px; font-weight:600; font-size:14px; cursor:pointer; }
+  button.go:hover { filter:brightness(1.08); }
+  button.go:disabled { opacity:.45; cursor:not-allowed; }
+  button.ghost { background:transparent; color:var(--ink); border:1px solid var(--edge);
+    border-radius:6px; padding:10px 16px; cursor:pointer; font-size:14px; }
+  button.ghost:hover { border-color:var(--accent); }
+
+  .live { margin-top:18px; background:var(--panel); border:1px solid var(--edge);
+    border-radius:6px; padding:14px; min-height:52px; max-height:220px; overflow:auto;
+    white-space:pre-wrap; font:13px/1.6 ui-monospace,Consolas,monospace; color:#cbb6a5; }
+
+  /* Results */
+  .results { margin-top:38px; }
+  .summary { font-size:15px; margin-bottom:14px; color:var(--muted); }
+  .summary b { color:var(--ink); }
+  .flow { padding:18px 0; border-top:1px solid var(--edge); }
+  .flow:first-child { border-top:none; }
+  .flowhead { display:flex; align-items:center; gap:14px; }
+  .badge { font-family:var(--px); font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+    padding:3px 9px; border-radius:4px; }
+  .badge.ai { background:rgba(255,90,31,.14); color:var(--accent); }
+  .badge.norm { background:rgba(99,192,140,.13); color:var(--ok); }
+  .conf { flex:1; height:4px; background:var(--edge); border-radius:2px; overflow:hidden; }
+  .conf > i { display:block; height:100%; background:var(--accent); }
+  .confnum { font-variant-numeric:tabular-nums; color:var(--muted); font-size:13px;
+    min-width:96px; text-align:right; }
+  .ref { font-size:12px; color:var(--faint); margin:11px 0 0; }
+  .ref s { color:var(--faint); }
+  .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px 20px; margin-top:14px; }
+  .k { font-size:11px; color:var(--faint); margin-bottom:3px; }
+  .v { font-variant-numeric:tabular-nums; font-size:14px; }
+
+  .imp { margin-top:12px; }
+  .impbar { display:flex; align-items:center; gap:12px; margin:6px 0; font-size:12px; }
+  .impbar .n { width:150px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .impbar .b { flex:1; height:4px; background:var(--edge); border-radius:2px; overflow:hidden; }
+  .impbar .b > i { display:block; height:100%; background:var(--accent); }
+
+  .err { background:rgba(255,90,31,.08); border:1px solid rgba(255,90,31,.4); color:#ffcbb0;
+    border-radius:6px; padding:11px 14px; margin-top:16px; font-size:13.5px; white-space:pre-wrap; }
+
+  footer { max-width:820px; margin:56px auto 0; padding:22px 28px 48px;
+    border-top:1px solid var(--edge); color:var(--faint); font-size:12.5px; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="brand"><span class="cube"></span>Oximy</div>
+  <h1><span>llm-shape-detector</span> / portal</h1>
+  <div class="tag">Detect LLM/AI usage from the <b>shape</b> of traffic: packet timing and sizes only.
+  No hostname, SNI, IP, or port is ever a feature, so it survives Encrypted Client Hello.</div>
+
+  <div class="thesis">
+    <b>The tell:</b> an LLM streaming response is one long-lived TCP connection that dribbles
+    <b>many small downstream packets over several seconds</b>, token by token. A page load is one big
+    burst; a REST call is a short request/response. We classify on that trickle shape. There is
+    <b>no identifier left to encrypt</b>, so ECH doesn't blind it.
+  </div>
+
+  <div class="status" id="status"><span class="chip">checking toolchain</span></div>
+
+  <details id="impwrap" class="hidden">
+    <summary>What the model weighs (feature importances, all shape, zero identifiers)</summary>
+    <div class="imp" id="imp"></div>
+  </details>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="real">Real LLM test</div>
+    <div class="tab" data-tab="sim">Simulated</div>
+    <div class="tab" data-tab="pcap">Analyze a pcap</div>
+  </div>
+
+  <!-- REAL -->
+  <div class="card" id="tab-real">
+    <div class="row">
+      <div>
+        <label>Provider</label>
+        <select id="provider">
+          <option value="openai">OpenAI-compatible</option>
+          <option value="anthropic">Anthropic</option>
+          <option value="ollama">Ollama (local, no key)</option>
+        </select>
+      </div>
+      <div>
+        <label>Model</label>
+        <input id="model" value="gpt-4o-mini" />
+        <div class="hint" id="modelhint"></div>
+      </div>
+    </div>
+    <label>Base URL</label>
+    <input id="base_url" value="https://api.openai.com/v1" />
+    <div class="hint">OpenAI-compatible works with OpenAI, Groq, OpenRouter, Together, LM Studio, vLLM, and the Vercel AI Gateway.</div>
+    <label>API key <span id="keyhint" class="hint" style="display:inline"></span></label>
+    <input id="api_key" type="password" placeholder="sk-... (kept in your browser; sent only to your chosen endpoint)" />
+    <label>Prompt (a longer answer streams for longer, so the shape is clearer)</label>
+    <textarea id="prompt">Explain how ocean currents work, in a few detailed paragraphs.</textarea>
+    <button class="go" id="run-real">Fire real LLM test</button>
+    <div class="hint" style="margin-top:10px">We make a <b>real streaming call</b>, measure each token's true arrival time and size, then
+      reconstruct the on-wire flow and detect it. No raw packet capture, so no driver is needed.</div>
+    <div class="live hidden" id="live"></div>
+  </div>
+
+  <!-- SIM -->
+  <div class="card hidden" id="tab-sim">
+    <label>What to simulate</label>
+    <select id="sim-kind">
+      <option value="mixed">Mixed (AI + normal)</option>
+      <option value="ai">AI streaming only</option>
+      <option value="normal">Normal traffic only</option>
+    </select>
+    <label>Number of flows: <b id="nflows-val">6</b></label>
+    <input id="nflows" type="range" min="2" max="20" value="6" />
+    <button class="go" id="run-sim">Run simulated test</button>
+    <div class="hint" style="margin-top:10px">No API key needed. Builds synthetic flows and runs the real tshark and model pipeline.</div>
+  </div>
+
+  <!-- PCAP -->
+  <div class="card hidden" id="tab-pcap">
+    <label>Bundled fixture</label>
+    <div class="row">
+      <div><select id="fixture"></select></div>
+      <div style="flex:0 0 auto"><button class="ghost" id="run-fixture" style="margin-top:0">Analyze fixture</button></div>
+    </div>
+    <label style="margin-top:18px">Or upload your own .pcap / .pcapng</label>
+    <div class="row">
+      <div><input id="pcapfile" type="file" accept=".pcap,.pcapng,.cap" /></div>
+      <div style="flex:0 0 auto"><button class="ghost" id="run-upload" style="margin-top:0">Upload and analyze</button></div>
+    </div>
+    <div class="hint" style="margin-top:12px">The model sees only shape features from your capture. IP and port are read solely to split flow directions.</div>
+  </div>
+
+  <div id="err"></div>
+  <div class="results" id="results"></div>
+</div>
+
+<footer>
+  Metadata-only by design: it never decrypts, reassembles payloads, or resolves names. IP and port are used
+  <b>only</b> to split each flow into upstream and downstream directions; their values never reach the model.
+</footer>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => (s+"").replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+// ---- provider presets ----
+const PRESETS = {
+  openai:    { base:"https://api.openai.com/v1", model:"gpt-4o-mini" },
+  // Current Anthropic models (older ones like claude-3-5-haiku-* are RETIRED and 404):
+  // claude-opus-4-8, claude-sonnet-5, claude-sonnet-4-6, claude-haiku-4-5, claude-fable-5
+  anthropic: { base:"https://api.anthropic.com", model:"claude-sonnet-4-6" },
+  ollama:    { base:"http://localhost:11434/v1", model:"llama3.2" },
+};
+const MODEL_HINTS = {
+  openai: "e.g. gpt-4o-mini, gpt-4o",
+  anthropic: "current: claude-sonnet-4-6, claude-opus-4-8, claude-haiku-4-5 (older claude-3-* are retired)",
+  ollama: "a model you've pulled, e.g. llama3.2, qwen2.5",
+};
+function applyProvider(prov){
+  const p = PRESETS[prov]; $("#base_url").value = p.base; $("#model").value = p.model;
+  $("#modelhint").textContent = MODEL_HINTS[prov] || "";
+}
+$("#provider").addEventListener("change", e => applyProvider(e.target.value));
+
+// ---- tabs ----
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+  t.classList.add("active");
+  ["real","sim","pcap"].forEach(name =>
+    $("#tab-"+name).classList.toggle("hidden", name !== t.dataset.tab));
+}));
+
+// ---- range label ----
+$("#nflows").addEventListener("input", e => $("#nflows-val").textContent = e.target.value);
+
+// ---- status ----
+async function loadStatus() {
+  const s = await (await fetch("/api/status")).json();
+  const chips = [];
+  chips.push(s.tshark
+    ? `<span class="chip good">tshark <b>found</b></span>`
+    : `<span class="chip bad">tshark <b>missing</b></span>`);
+  chips.push(s.model_ready
+    ? `<span class="chip good">model <b>ready</b></span>`
+    : `<span class="chip bad">model <b>not trained</b></span>`);
+  chips.push(`<span class="chip">features <b>${s.feature_cols.length}</b>, 0 identifiers</span>`);
+  $("#status").innerHTML = chips.join("");
+
+  if (s.importances && s.importances.length) {
+    const max = Math.max(...s.importances.map(i => i.importance)) || 1;
+    $("#imp").innerHTML = s.importances.map(i =>
+      `<div class="impbar"><div class="n">${esc(i.feature)}</div>
+       <div class="b"><i style="width:${(i.importance/max*100).toFixed(0)}%"></i></div>
+       <div style="width:46px;text-align:right;color:var(--muted)">${i.importance.toFixed(2)}</div></div>`).join("");
+    $("#impwrap").classList.remove("hidden");
+  }
+  // fixtures
+  $("#fixture").innerHTML = (s.fixtures||[]).map(f => `<option>${esc(f)}</option>`).join("")
+    || `<option value="">(none, run make_fixtures.py)</option>`;
+  // key hint
+  if (s.env_defaults) {
+    $("#base_url").value = s.env_defaults.openai_base_url || $("#base_url").value;
+    $("#keyhint").textContent = s.env_defaults.openai_key_set
+      ? "(OPENAI_API_KEY found in env, leave blank to use it)" : "";
+  }
+}
+
+// ---- render results (shared) ----
+function fnum(x, d=2){ return (x==null||isNaN(x)) ? "-" : Number(x).toFixed(d); }
+function renderResults(det, source, stream) {
+  $("#err").innerHTML = "";
+  let html = `<div class="summary"><b>${det.n_flagged}</b> of <b>${det.n_flows}</b> flow(s) flagged as LLM/AI
+     &nbsp;&middot;&nbsp; source: ${esc(source||"")}</div>`;
+
+  if (stream) {
+    html += `<div class="flow"><div class="ref">Real stream measured:
+      ${stream.n_token_events} token chunks &middot; ${(stream.total_down_bytes/1024).toFixed(1)} KB downstream &middot;
+      ${fnum(stream.stream_seconds,2)} s of streaming &middot; TTFT ${fnum(stream.ttft_seconds,2)} s</div></div>`;
+  }
+
+  for (const f of det.flows) {
+    const ai = f.flagged;
+    html += `<div class="flow ${ai?'ai':'norm'}">
+      <div class="flowhead">
+        <span class="badge ${ai?'ai':'norm'}">${ai?'LLM detected':'normal'}</span>
+        <div class="conf"><i style="width:${(f.p_ai*100).toFixed(0)}%"></i></div>
+        <div class="confnum">P(AI) = ${f.p_ai.toFixed(3)}</div>
+      </div>
+      <div class="ref">peer <s>(reference only, not used to decide)</s>: ${esc(f.server)}</div>
+      <div class="grid">
+        <div><div class="k">duration</div><div class="v">${fnum(f.duration)} s</div></div>
+        <div><div class="k">downstream pkts</div><div class="v">${f.n_down} (${fnum(f.down_pps,1)}/s)</div></div>
+        <div><div class="k">small &lt;300B frac</div><div class="v">${fnum(f.frac_small_down)}</div></div>
+        <div><div class="k">down size</div><div class="v">${fnum(f.down_size_mean,0)}&plusmn;${fnum(f.down_size_std,0)} B</div></div>
+        <div><div class="k">IAT mean</div><div class="v">${fnum(f.down_iat_mean_ms,0)} ms</div></div>
+        <div><div class="k">IAT max</div><div class="v">${fnum(f.down_iat_max_ms,0)} ms</div></div>
+        <div><div class="k">IAT cv</div><div class="v">${fnum(f.down_iat_cv)}</div></div>
+        <div><div class="k">down/up bytes</div><div class="v">${fnum(f.down_up_byte_ratio,1)}</div></div>
+      </div></div>`;
+  }
+  $("#results").innerHTML = html;
+}
+function showError(msg){ $("#err").innerHTML = `<div class="err">${esc(msg)}</div>`; }
+
+// ---- simulated ----
+$("#run-sim").addEventListener("click", async () => {
+  $("#run-sim").disabled = true; $("#results").innerHTML = "<div class='summary'>running</div>";
+  try {
+    const r = await fetch("/api/simulate", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({kind:$("#sim-kind").value, n_flows:+$("#nflows").value})});
+    const j = await r.json(); if (j.error) return showError(j.error);
+    renderResults(j, j.source);
+  } catch(e){ showError(String(e)); } finally { $("#run-sim").disabled = false; }
+});
+
+// ---- fixture / upload ----
+$("#run-fixture").addEventListener("click", async () => {
+  const fx = $("#fixture").value; if (!fx) return showError("no fixture available");
+  $("#results").innerHTML = "<div class='summary'>analyzing</div>";
+  const fd = new FormData(); fd.append("fixture", fx);
+  const j = await (await fetch("/api/analyze", {method:"POST", body:fd})).json();
+  if (j.error) return showError(j.error); renderResults(j, j.source);
+});
+$("#run-upload").addEventListener("click", async () => {
+  const f = $("#pcapfile").files[0]; if (!f) return showError("choose a .pcap file first");
+  $("#results").innerHTML = "<div class='summary'>analyzing</div>";
+  const fd = new FormData(); fd.append("pcap", f);
+  const j = await (await fetch("/api/analyze", {method:"POST", body:fd})).json();
+  if (j.error) return showError(j.error); renderResults(j, j.source);
+});
+
+// ---- real LLM (streaming NDJSON) ----
+$("#run-real").addEventListener("click", async () => {
+  const btn = $("#run-real"); btn.disabled = true;
+  $("#err").innerHTML = ""; $("#results").innerHTML = "";
+  const live = $("#live"); live.classList.remove("hidden"); live.textContent = "";
+  const payload = {
+    provider:$("#provider").value, base_url:$("#base_url").value.trim(),
+    model:$("#model").value.trim(), api_key:$("#api_key").value,
+    prompt:$("#prompt").value,
+  };
+  try {
+    const resp = await fetch("/api/real-llm", {method:"POST",
+      headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)});
+    const reader = resp.body.getReader(); const dec = new TextDecoder(); let buf = "";
+    while (true) {
+      const {done, value} = await reader.read(); if (done) break;
+      buf += dec.decode(value, {stream:true}); let i;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, i); buf = buf.slice(i+1);
+        if (!line.trim()) continue;
+        const ev = JSON.parse(line);
+        if (ev.type === "start") live.textContent = `[streaming from ${ev.model}] `;
+        else if (ev.type === "token") { live.textContent += ev.text; live.scrollTop = live.scrollHeight; }
+        else if (ev.type === "error") showError(ev.message + (ev.detail? "\n"+ev.detail.join("\n"):""));
+        else if (ev.type === "result") renderResults(ev.detection, ev.detection.source, ev.stream);
+      }
+    }
+  } catch(e){ showError(String(e)); } finally { btn.disabled = false; }
+});
+
+// Shareable instant-demo link: /?demo or /#demo auto-runs a simulated test.
+function maybeDemo(){
+  if (!location.search.includes("demo") && !location.hash.includes("demo")) return;
+  document.querySelector('[data-tab="sim"]').click();
+  $("#run-sim").click();
+}
+$("#modelhint").textContent = MODEL_HINTS[$("#provider").value] || "";
+maybeDemo();      // fire the demo test first so it's pending immediately
+loadStatus();
+</script>
+</body>
+</html>
