@@ -8,8 +8,7 @@ ai.csv
 normal.csv
 fixtures/
 
-# PP Mondwest is a licensed font (Pangram Pangram), not redistributed here.
-# The UI falls back to a monospace font when it is absent.
-# If your license permits redistribution, force-add it:
-#   git add -f static/PPMondwest-Regular.otf
+# PP Mondwest pixel display font (Pangram Pangram), used by the portal UI.
+# The loose root copy stays ignored; the one the UI serves from static/ is tracked.
 *.otf
+!static/PPMondwest-Regular.otf

@@ -89,10 +89,9 @@ Every mode shows, per flow: the LLM/normal verdict, a confidence bar, and the
 shape stats that drove it, with the peer IP/port shown only as *"reference
 only, not used to decide."* The same `FEATURE_COLS`-only rule holds everywhere.
 
-> **Fonts.** The UI uses the PP Mondwest pixel display font for the title and
-> badges. That font is licensed (Pangram Pangram) and is **not** included in this
-> repo; the UI falls back to a monospace font when it is absent. To use it, drop
-> `PPMondwest-Regular.otf` into `static/` (only if your license permits).
+> **Fonts.** The UI uses the PP Mondwest pixel display font (Pangram Pangram) for
+> the title and badges. It is bundled at `static/PPMondwest-Regular.otf`; if that
+> file is missing, the UI falls back to a monospace font.
 
 ## Features (the model's entire input surface)
 
