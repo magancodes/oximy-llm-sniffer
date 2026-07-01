@@ -124,12 +124,13 @@ locally, on a fresh machine, and serverless.
 
 ### Deploy on Vercel
 
-The repo ships an `api/index.py` entrypoint and a `vercel.json` that route every
-request to the Flask app, plus a committed `model.joblib`, so it deploys as-is:
+The repo ships a `vercel.json` that serves `app.py` (a Flask WSGI app) as a
+single Python serverless function and routes every request to it, plus a
+committed `model.joblib`, so it deploys as-is:
 
 ```bash
-vercel        # preview
-vercel --prod # production
+vercel login   # once
+vercel --prod  # deploy the current directory
 ```
 
 No tshark, no training step at deploy time. The bundled fixtures are not shipped
